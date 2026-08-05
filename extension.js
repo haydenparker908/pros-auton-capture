@@ -8,7 +8,20 @@ const path = require("path");
 function activate(context) {
   refreshProsContext();
   context.subscriptions.push(
-    vscode.workspace.onDidChangeWorkspaceFolders(() => refreshProsContext())
+    vscode.workspace.onDidChangeWorkspaceFolders(() => refreshProsContext()),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("prosAutonCapture")) {
+        actionsProvider.refresh();
+      }
+    })
+  );
+
+  const actionsProvider = new ActionsTreeProvider();
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider(
+      "prosAutonCapture.actions",
+      actionsProvider
+    )
   );
 
   context.subscriptions.push(
@@ -17,11 +30,88 @@ function activate(context) {
     ),
     vscode.commands.registerCommand("prosAutonCapture.captureSkills", () =>
       runCapture(context, "skills")
+    ),
+    vscode.commands.registerCommand("prosAutonCapture.openLatestLog", () =>
+      openLatestLog()
+    ),
+    vscode.commands.registerCommand("prosAutonCapture.openSettings", () =>
+      vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "prosAutonCapture"
+      )
     )
   );
 }
 
 function deactivate() {}
+
+class ActionItem extends vscode.TreeItem {
+  /**
+   * @param {string} label
+   * @param {string} commandId
+   * @param {string} description
+   * @param {string} iconId
+   */
+  constructor(label, commandId, description, iconId) {
+    super(label, vscode.TreeItemCollapsibleState.None);
+    this.tooltip = description;
+    this.description = description;
+    this.iconPath = new vscode.ThemeIcon(iconId);
+    this.command = { command: commandId, title: label };
+    this.contextValue = "prosAutonCaptureAction";
+  }
+}
+
+class ActionsTreeProvider {
+  constructor() {
+    this._onDidChangeTreeData = new vscode.EventEmitter();
+    this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+  }
+
+  refresh() {
+    this._onDidChangeTreeData.fire();
+  }
+
+  getTreeItem(element) {
+    return element;
+  }
+
+  getChildren() {
+    const config = vscode.workspace.getConfiguration("prosAutonCapture");
+    const single = config.get("singleSlotMode", false);
+    const shared = config.get("sharedSlot", 5);
+    const matchSlot = single ? shared : config.get("matchSlot", 5);
+    const skillsSlot = single ? shared : config.get("skillsSlot", 6);
+    const logDir = config.get("logDir", "brain-logs");
+
+    return [
+      new ActionItem(
+        "Capture Match Auton",
+        "prosAutonCapture.captureMatch",
+        single ? `slot ${matchSlot} (shared)` : `slot ${matchSlot}`,
+        "play"
+      ),
+      new ActionItem(
+        "Capture Skills Auton",
+        "prosAutonCapture.captureSkills",
+        single ? `slot ${skillsSlot} (shared)` : `slot ${skillsSlot}`,
+        "rocket"
+      ),
+      new ActionItem(
+        "Open Latest Log",
+        "prosAutonCapture.openLatestLog",
+        `${logDir}/latest.txt`,
+        "file-text"
+      ),
+      new ActionItem(
+        "Settings",
+        "prosAutonCapture.openSettings",
+        single ? "1-slot mode" : "2-slot mode",
+        "gear"
+      ),
+    ];
+  }
+}
 
 function refreshProsContext() {
   const hasPros = Boolean(findProsProjectRoot());
@@ -47,16 +137,22 @@ async function runCapture(context, mode) {
 
   const config = vscode.workspace.getConfiguration("prosAutonCapture");
   const isSkills = mode === "skills";
-  const slot = isSkills
-    ? config.get("skillsSlot", 6)
-    : config.get("matchSlot", 5);
+  const single = config.get("singleSlotMode", false);
+  const slot = single
+    ? config.get("sharedSlot", 5)
+    : isSkills
+      ? config.get("skillsSlot", 6)
+      : config.get("matchSlot", 5);
   const stopPattern = isSkills
     ? config.get("skillsStopPattern", "[skills] done")
     : config.get("matchStopPattern", "[auton] done");
   const timeoutSec = config.get("timeoutSec", 180);
-  const benchButton = isSkills ? "Y" : "X";
+  const benchButton = isSkills
+    ? config.get("skillsBenchButton", "Y")
+    : config.get("matchBenchButton", "X");
   const benchLabel = isSkills ? "skills auton" : "match auton";
-  const makeExtra = isSkills ? "EXTRA_CXXFLAGS=-DAUTON_SKILLS" : "";
+  const logDir = config.get("logDir", "brain-logs");
+  const makeExtra = isSkills ? config.get("skillsMakeExtra", "EXTRA_CXXFLAGS=-DAUTON_SKILLS") : "";
 
   const scriptPath = resolveCaptureScript(context, projectRoot);
   if (!scriptPath) {
@@ -66,7 +162,11 @@ async function runCapture(context, mode) {
     return;
   }
 
-  // Dispose prior capture terminals so the serial port is free.
+  // Ensure log folder exists; script also creates latest.txt.
+  const absLogDir = path.join(projectRoot, logDir);
+  fs.mkdirSync(absLogDir, { recursive: true });
+  const latestPath = path.join(absLogDir, "latest.txt");
+
   vscode.window.terminals
     .filter((t) => t.name === "PROS Auton Capture" || t.name === "PROS Terminal")
     .forEach((t) => t.dispose());
@@ -96,18 +196,50 @@ async function runCapture(context, mode) {
     "-Slot",
     String(slot),
   ];
-  if (makeExtra) {
-    args.push("-MakeExtra", quote(makeExtra));
+  if (makeExtra && String(makeExtra).trim()) {
+    args.push("-MakeExtra", quote(String(makeExtra).trim()));
   }
+  args.push("-LogDir", quote(logDir));
 
   term.sendText(`powershell ${args.join(" ")}`);
+
+  if (config.get("openLatestOnStart", true)) {
+    if (!fs.existsSync(latestPath)) {
+      fs.writeFileSync(latestPath, "");
+    }
+    const doc = await vscode.workspace.openTextDocument(latestPath);
+    await vscode.window.showTextDocument(doc, {
+      preview: true,
+      viewColumn: vscode.ViewColumn.Beside,
+    });
+  }
+
   vscode.window.showInformationMessage(
-    `PROS ${benchLabel}: uploading to slot ${slot}. Press ${benchButton} when prompted.`
+    `${benchLabel}: slot ${slot} → ${logDir}/latest.txt. Press ${benchButton} when prompted.`
   );
 }
 
+async function openLatestLog() {
+  const projectRoot = findProsProjectRoot();
+  if (!projectRoot) {
+    vscode.window.showErrorMessage("No PROS project found.");
+    return;
+  }
+  const logDir = vscode.workspace
+    .getConfiguration("prosAutonCapture")
+    .get("logDir", "brain-logs");
+  const latestPath = path.join(projectRoot, logDir, "latest.txt");
+  if (!fs.existsSync(latestPath)) {
+    vscode.window.showWarningMessage(
+      `No log yet at ${logDir}/latest.txt — run a capture first.`
+    );
+    return;
+  }
+  const doc = await vscode.workspace.openTextDocument(latestPath);
+  await vscode.window.showTextDocument(doc, { preview: false });
+}
+
 /**
- * Prefer the project's script; otherwise use the copy shipped with the extension.
  * @param {vscode.ExtensionContext} context
  * @param {string} projectRoot
  */

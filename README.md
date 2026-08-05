@@ -1,57 +1,51 @@
 # PROS Auton Capture (Cursor / VS Code)
 
-Toolbar buttons + shortcuts to **build, upload, and capture** VEX PROS brain serial logs until your auton prints a done marker.
+Pinned sidebar (like PROS) with **Quick Actions**, plus editor buttons and shortcuts to capture match/skills auton logs into `brain-logs/latest.txt`.
 
-This is the right layout for an editor extension:
-- **Robot code** stays in your PROS project repo
-- **This extension** is a separate repo you install into Cursor/VS Code
+## Layout (recommended)
 
-## What you get
-
-| Control | Action |
+| Repo | Role |
 |--|--|
-| Play button (editor title) / **Ctrl+Alt+A** | Match auton → slot 5, stop on `[auton] done`, press **X** |
-| Rocket button / **Ctrl+Alt+S** | Skills auton → slot 6, stop on `[skills] done`, press **Y** |
+| Your PROS project | Robot code (`project.pros`, auton routines) |
+| **This extension** | Editor UI: pin, Quick Actions, settings |
 
-Logs land in your project’s `brain-logs/latest.txt`.
+## Features
 
-## Install (development)
+- **Activity bar “H” icon** — pin Auton Capture like the PROS sidebar
+- **Quick Actions**
+  - Capture Match Auton
+  - Capture Skills Auton
+  - Open Latest Log
+  - Settings
+- Writes **`brain-logs/latest.txt`** every run (+ timestamped archive)
+- **Single-slot or two-slot** mode in settings
+- Editor title buttons + **Ctrl+Alt+A** / **Ctrl+Alt+S**
 
-1. Clone this repo
-2. In Cursor/VS Code: **Extensions: Install from Location…** and pick this folder  
-   - or open the folder and press **F5** (Extension Development Host)
-3. Open a workspace that contains `project.pros`
-4. Use the title-bar buttons or shortcuts
+## Develop / try
 
-## Install (packed)
+**Open this folder** in Cursor (File → Open Folder → `pros-auton-capture`), then press **F5**.  
+Point the Extension Development Host at your `prosproj` workspace (or open prosproj in that window).
 
-```powershell
-npx @vscode/vsce package
-cursor --install-extension .\pros-auton-capture-0.1.0.vsix
-# or: code --install-extension .\pros-auton-capture-0.1.0.vsix
-```
+You do **not** need a forever-separate Cursor install — just open this repo when editing the extension, and your robot repo when editing auton code. A multi-root workspace with both folders also works.
 
-## Requirements
+## Install from Location
 
-- [PROS VS Code extension](https://marketplace.visualstudio.com/items?itemName=sigbots.pros) (provides the CLI/toolchain)
-- Windows PowerShell (the capture script is `.ps1`)
-- Brain/controller connected for upload + serial
+Extensions → `…` → **Install from Location…** → this folder.
 
-## Project hook (optional)
+## Settings (search `prosAutonCapture`)
 
-If your PROS project has `scripts/capture-auton.ps1`, that script is used.  
-Otherwise the extension runs its bundled copy under `scripts/capture-auton.ps1`.
+| Setting | Purpose |
+|--|--|
+| `singleSlotMode` | One slot for both match + skills |
+| `sharedSlot` | Slot when single-slot mode is on |
+| `matchSlot` / `skillsSlot` | Slots when using two programs |
+| `logDir` | Default `brain-logs` (`latest.txt` always updated) |
+| `openLatestOnStart` | Open the log beside the editor when capture starts |
+| Stop patterns / bench buttons / timeout | Match your robot `printf` markers |
 
-Your robot code should print:
+## Robot markers
 
 ```text
-[auton] done    // match
-[skills] done   // skills
+[auton] done
+[skills] done
 ```
-
-## Settings
-
-- `prosAutonCapture.matchSlot` (default 5)
-- `prosAutonCapture.skillsSlot` (default 6)
-- `prosAutonCapture.matchStopPattern` / `skillsStopPattern`
-- `prosAutonCapture.timeoutSec`

@@ -15,7 +15,8 @@ param(
   [string]$BenchButton = "X",
   [string]$BenchLabel = "match auton",
   [int]$Slot = 5,
-  [string]$MakeExtra = ""
+  [string]$MakeExtra = "",
+  [string]$LogDir = "brain-logs"
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,7 +91,7 @@ function Stop-ProsTerminalProcesses {
 }
 
 function New-BrainLogPaths {
-  $logDir = Join-Path $ProjectRoot "brain-logs"
+  $logDir = Join-Path $ProjectRoot $LogDir
   if (-not (Test-Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir | Out-Null
   }

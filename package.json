@@ -1,10 +1,11 @@
 {
   "name": "pros-auton-capture",
   "displayName": "PROS Auton Capture",
-  "description": "Toolbar buttons to build/upload a PROS project and capture brain terminal logs until match or skills auton finishes.",
-  "version": "0.1.0",
+  "description": "Pinned Quick Actions to build/upload and capture PROS match or skills auton logs into brain-logs/latest.txt.",
+  "version": "0.2.0",
   "publisher": "haydenparker908",
   "license": "MIT",
+  "icon": "media/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/haydenparker908/pros-auton-capture.git"
@@ -23,21 +24,52 @@
     "robotics"
   ],
   "activationEvents": [
-    "workspaceContains:**/project.pros"
+    "workspaceContains:**/project.pros",
+    "onView:prosAutonCapture.actions"
   ],
   "main": "./extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pros-auton-capture",
+          "title": "Auton Capture",
+          "icon": "media/h-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "pros-auton-capture": [
+        {
+          "id": "prosAutonCapture.actions",
+          "name": "Quick Actions",
+          "contextualTitle": "Auton Capture"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "prosAutonCapture.captureMatch",
-        "title": "PROS: Capture Match Auton",
+        "title": "Capture Match Auton",
         "icon": "$(play)",
         "category": "PROS Auton Capture"
       },
       {
         "command": "prosAutonCapture.captureSkills",
-        "title": "PROS: Capture Skills Auton",
+        "title": "Capture Skills Auton",
         "icon": "$(rocket)",
+        "category": "PROS Auton Capture"
+      },
+      {
+        "command": "prosAutonCapture.openLatestLog",
+        "title": "Open Latest Brain Log",
+        "icon": "$(file-text)",
+        "category": "PROS Auton Capture"
+      },
+      {
+        "command": "prosAutonCapture.openSettings",
+        "title": "Open Settings",
+        "icon": "$(gear)",
         "category": "PROS Auton Capture"
       }
     ],
@@ -52,6 +84,13 @@
           "when": "prosAutonCapture.isProsProject",
           "command": "prosAutonCapture.captureSkills",
           "group": "navigation@91"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "prosAutonCapture.openSettings",
+          "when": "view == prosAutonCapture.actions",
+          "group": "navigation"
         }
       ]
     },
@@ -72,19 +111,41 @@
     "configuration": {
       "title": "PROS Auton Capture",
       "properties": {
+        "prosAutonCapture.singleSlotMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use one V5 slot for both match and skills uploads (overwrites the same slot)."
+        },
+        "prosAutonCapture.sharedSlot": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "Slot used when Single Slot Mode is on."
+        },
         "prosAutonCapture.matchSlot": {
           "type": "number",
           "default": 5,
           "minimum": 1,
           "maximum": 8,
-          "description": "V5 program slot for match auton uploads."
+          "description": "V5 slot for match auton (when Single Slot Mode is off)."
         },
         "prosAutonCapture.skillsSlot": {
           "type": "number",
           "default": 6,
           "minimum": 1,
           "maximum": 8,
-          "description": "V5 program slot for skills auton uploads."
+          "description": "V5 slot for skills auton (when Single Slot Mode is off)."
+        },
+        "prosAutonCapture.logDir": {
+          "type": "string",
+          "default": "brain-logs",
+          "description": "Folder under the PROS project for captures. Always updates latest.txt plus a timestamped copy."
+        },
+        "prosAutonCapture.openLatestOnStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open brain-logs/latest.txt when a capture starts so you can watch the log."
         },
         "prosAutonCapture.matchStopPattern": {
           "type": "string",
@@ -96,10 +157,25 @@
           "default": "[skills] done",
           "description": "Stop skills capture when brain output contains this string."
         },
+        "prosAutonCapture.matchBenchButton": {
+          "type": "string",
+          "default": "X",
+          "description": "Controller button shown in the match capture prompt."
+        },
+        "prosAutonCapture.skillsBenchButton": {
+          "type": "string",
+          "default": "Y",
+          "description": "Controller button shown in the skills capture prompt."
+        },
         "prosAutonCapture.timeoutSec": {
           "type": "number",
           "default": 180,
           "description": "Max seconds to wait for the stop pattern."
+        },
+        "prosAutonCapture.skillsMakeExtra": {
+          "type": "string",
+          "default": "EXTRA_CXXFLAGS=-DAUTON_SKILLS",
+          "description": "Extra make flags for skills builds (empty to skip). Used so slot skills binaries default to skills auton."
         }
       }
     }
