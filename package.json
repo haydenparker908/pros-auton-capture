@@ -1,0 +1,107 @@
+{
+  "name": "pros-auton-capture",
+  "displayName": "PROS Auton Capture",
+  "description": "Toolbar buttons to build/upload a PROS project and capture brain terminal logs until match or skills auton finishes.",
+  "version": "0.1.0",
+  "publisher": "haydenparker908",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/haydenparker908/pros-auton-capture.git"
+  },
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "pros",
+    "vex",
+    "v5",
+    "auton",
+    "robotics"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/project.pros"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "prosAutonCapture.captureMatch",
+        "title": "PROS: Capture Match Auton",
+        "icon": "$(play)",
+        "category": "PROS Auton Capture"
+      },
+      {
+        "command": "prosAutonCapture.captureSkills",
+        "title": "PROS: Capture Skills Auton",
+        "icon": "$(rocket)",
+        "category": "PROS Auton Capture"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "prosAutonCapture.isProsProject",
+          "command": "prosAutonCapture.captureMatch",
+          "group": "navigation@90"
+        },
+        {
+          "when": "prosAutonCapture.isProsProject",
+          "command": "prosAutonCapture.captureSkills",
+          "group": "navigation@91"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "prosAutonCapture.captureMatch",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a",
+        "when": "prosAutonCapture.isProsProject"
+      },
+      {
+        "command": "prosAutonCapture.captureSkills",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s",
+        "when": "prosAutonCapture.isProsProject"
+      }
+    ],
+    "configuration": {
+      "title": "PROS Auton Capture",
+      "properties": {
+        "prosAutonCapture.matchSlot": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "V5 program slot for match auton uploads."
+        },
+        "prosAutonCapture.skillsSlot": {
+          "type": "number",
+          "default": 6,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "V5 program slot for skills auton uploads."
+        },
+        "prosAutonCapture.matchStopPattern": {
+          "type": "string",
+          "default": "[auton] done",
+          "description": "Stop match capture when brain output contains this string."
+        },
+        "prosAutonCapture.skillsStopPattern": {
+          "type": "string",
+          "default": "[skills] done",
+          "description": "Stop skills capture when brain output contains this string."
+        },
+        "prosAutonCapture.timeoutSec": {
+          "type": "number",
+          "default": 180,
+          "description": "Max seconds to wait for the stop pattern."
+        }
+      }
+    }
+  }
+}
