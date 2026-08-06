@@ -1,11 +1,11 @@
 {
   "name": "pros-auton-capture",
-  "displayName": "PROS Auton Capture",
+  "displayName": "Hayden Robotics PROS Helper",
   "description": "Pinned Quick Actions to build/upload and capture PROS match or skills auton logs into brain-logs/latest.txt.",
-  "version": "0.2.0",
-  "publisher": "haydenparker908",
+  "version": "0.2.1",
+  "publisher": "HaydenRobotics",
   "license": "MIT",
-  "icon": "media/icon.png",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/haydenparker908/pros-auton-capture.git"
@@ -25,25 +25,25 @@
   ],
   "activationEvents": [
     "workspaceContains:**/project.pros",
-    "onView:prosAutonCapture.actions"
+    "onView:haydenProsHelper.actions"
   ],
   "main": "./extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "pros-auton-capture",
-          "title": "Auton Capture",
-          "icon": "media/h-icon.svg"
+          "id": "haydenProsHelper",
+          "title": "Hayden Robotics PROS Helper",
+          "icon": "media/h.svg"
         }
       ]
     },
     "views": {
-      "pros-auton-capture": [
+      "haydenProsHelper": [
         {
-          "id": "prosAutonCapture.actions",
+          "id": "haydenProsHelper.actions",
           "name": "Quick Actions",
-          "contextualTitle": "Auton Capture"
+          "contextualTitle": "Hayden Robotics PROS Helper"
         }
       ]
     },
@@ -52,25 +52,31 @@
         "command": "prosAutonCapture.captureMatch",
         "title": "Capture Match Auton",
         "icon": "$(play)",
-        "category": "PROS Auton Capture"
+        "category": "Hayden Robotics PROS Helper"
       },
       {
         "command": "prosAutonCapture.captureSkills",
         "title": "Capture Skills Auton",
         "icon": "$(rocket)",
-        "category": "PROS Auton Capture"
+        "category": "Hayden Robotics PROS Helper"
       },
       {
         "command": "prosAutonCapture.openLatestLog",
         "title": "Open Latest Brain Log",
         "icon": "$(file-text)",
-        "category": "PROS Auton Capture"
+        "category": "Hayden Robotics PROS Helper"
+      },
+      {
+        "command": "prosAutonCapture.deleteLogs",
+        "title": "Delete all log files",
+        "icon": "$(trash)",
+        "category": "Hayden Robotics PROS Helper"
       },
       {
         "command": "prosAutonCapture.openSettings",
         "title": "Open Settings",
         "icon": "$(gear)",
-        "category": "PROS Auton Capture"
+        "category": "Hayden Robotics PROS Helper"
       }
     ],
     "menus": {
@@ -89,7 +95,7 @@
       "view/title": [
         {
           "command": "prosAutonCapture.openSettings",
-          "when": "view == prosAutonCapture.actions",
+          "when": "view == haydenProsHelper.actions",
           "group": "navigation"
         }
       ]
@@ -99,17 +105,23 @@
         "command": "prosAutonCapture.captureMatch",
         "key": "ctrl+alt+a",
         "mac": "cmd+alt+a",
-        "when": "prosAutonCapture.isProsProject"
+        "when": "prosAutonCapture.isProsProject || workspaceFolderCount > 0"
       },
       {
         "command": "prosAutonCapture.captureSkills",
         "key": "ctrl+alt+s",
         "mac": "cmd+alt+s",
-        "when": "prosAutonCapture.isProsProject"
+        "when": "prosAutonCapture.isProsProject || workspaceFolderCount > 0"
+      },
+      {
+        "command": "prosAutonCapture.deleteLogs",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "prosAutonCapture.isProsProject || workspaceFolderCount > 0"
       }
     ],
     "configuration": {
-      "title": "PROS Auton Capture",
+      "title": "Hayden Robotics PROS Helper",
       "properties": {
         "prosAutonCapture.singleSlotMode": {
           "type": "boolean",
@@ -179,5 +191,8 @@
         }
       }
     }
+  },
+  "scripts": {
+    "package": "npx --yes @vscode/vsce package --allow-missing-repository --no-dependencies"
   }
 }

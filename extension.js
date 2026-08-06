@@ -1,30 +1,26 @@
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
+const { execFile } = require("child_process");
 
 /**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
   refreshProsContext();
+  const actionsProvider = new ActionsTreeProvider();
+
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => refreshProsContext()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("prosAutonCapture")) {
         actionsProvider.refresh();
       }
-    })
-  );
-
-  const actionsProvider = new ActionsTreeProvider();
-  context.subscriptions.push(
+    }),
     vscode.window.registerTreeDataProvider(
-      "prosAutonCapture.actions",
+      "haydenProsHelper.actions",
       actionsProvider
-    )
-  );
-
-  context.subscriptions.push(
+    ),
     vscode.commands.registerCommand("prosAutonCapture.captureMatch", () =>
       runCapture(context, "match")
     ),
@@ -33,6 +29,9 @@ function activate(context) {
     ),
     vscode.commands.registerCommand("prosAutonCapture.openLatestLog", () =>
       openLatestLog()
+    ),
+    vscode.commands.registerCommand("prosAutonCapture.deleteLogs", () =>
+      deleteAllLogFiles()
     ),
     vscode.commands.registerCommand("prosAutonCapture.openSettings", () =>
       vscode.commands.executeCommand(
@@ -104,6 +103,12 @@ class ActionsTreeProvider {
         "file-text"
       ),
       new ActionItem(
+        "Delete all log files",
+        "prosAutonCapture.deleteLogs",
+        `clear ${logDir}/ + close brain terminals`,
+        "trash"
+      ),
+      new ActionItem(
         "Settings",
         "prosAutonCapture.openSettings",
         single ? "1-slot mode" : "2-slot mode",
@@ -152,7 +157,9 @@ async function runCapture(context, mode) {
     : config.get("matchBenchButton", "X");
   const benchLabel = isSkills ? "skills auton" : "match auton";
   const logDir = config.get("logDir", "brain-logs");
-  const makeExtra = isSkills ? config.get("skillsMakeExtra", "EXTRA_CXXFLAGS=-DAUTON_SKILLS") : "";
+  const makeExtra = isSkills
+    ? config.get("skillsMakeExtra", "EXTRA_CXXFLAGS=-DAUTON_SKILLS")
+    : "";
 
   const scriptPath = resolveCaptureScript(context, projectRoot);
   if (!scriptPath) {
@@ -162,17 +169,21 @@ async function runCapture(context, mode) {
     return;
   }
 
-  // Ensure log folder exists; script also creates latest.txt.
   const absLogDir = path.join(projectRoot, logDir);
   fs.mkdirSync(absLogDir, { recursive: true });
   const latestPath = path.join(absLogDir, "latest.txt");
 
   vscode.window.terminals
-    .filter((t) => t.name === "PROS Auton Capture" || t.name === "PROS Terminal")
+    .filter(
+      (t) =>
+        t.name === "Hayden Robotics PROS Helper" ||
+        t.name === "PROS Auton Capture" ||
+        t.name === "PROS Terminal"
+    )
     .forEach((t) => t.dispose());
 
   const term = vscode.window.createTerminal({
-    name: "PROS Auton Capture",
+    name: "Hayden Robotics PROS Helper",
     cwd: projectRoot,
   });
   term.show(true);
@@ -239,6 +250,74 @@ async function openLatestLog() {
   await vscode.window.showTextDocument(doc, { preview: false });
 }
 
+async function deleteAllLogFiles() {
+  const projectRoot = findProsProjectRoot();
+  if (!projectRoot) {
+    vscode.window.showErrorMessage(
+      "No PROS project found (looking for project.pros)."
+    );
+    return;
+  }
+
+  const logDirName = vscode.workspace
+    .getConfiguration("prosAutonCapture")
+    .get("logDir", "brain-logs");
+  const logDir = path.join(projectRoot, logDirName);
+
+  await closeProsTerminals();
+
+  if (!fs.existsSync(logDir)) {
+    vscode.window.showInformationMessage(
+      `No ${logDirName}/ folder to clear. Closed brain terminals.`
+    );
+    return;
+  }
+
+  let removed = 0;
+  for (const name of fs.readdirSync(logDir)) {
+    const full = path.join(logDir, name);
+    try {
+      if (fs.statSync(full).isFile()) {
+        fs.unlinkSync(full);
+        removed += 1;
+      }
+    } catch {
+      /* ignore locked files */
+    }
+  }
+
+  vscode.window.showInformationMessage(
+    `Deleted ${removed} log file(s) from ${logDirName}/ and closed brain terminals.`
+  );
+}
+
+async function closeProsTerminals() {
+  const terminals = vscode.window.terminals.filter(
+    (t) =>
+      t.name === "Hayden Robotics PROS Helper" ||
+      t.name === "PROS Auton Capture" ||
+      t.name === "PROS Terminal" ||
+      /brain|pros.*terminal/i.test(t.name)
+  );
+  for (const t of terminals) {
+    t.dispose();
+  }
+
+  if (process.platform === "win32") {
+    await new Promise((resolve) => {
+      execFile(
+        "powershell",
+        [
+          "-NoProfile",
+          "-Command",
+          "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine -match 'pros' -and $_.CommandLine -match 'terminal' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+        ],
+        () => resolve()
+      );
+    });
+  }
+}
+
 /**
  * @param {vscode.ExtensionContext} context
  * @param {string} projectRoot
@@ -263,7 +342,9 @@ function findProsProjectRoot() {
       return folder.uri.fsPath;
     }
     try {
-      for (const ent of fs.readdirSync(folder.uri.fsPath, { withFileTypes: true })) {
+      for (const ent of fs.readdirSync(folder.uri.fsPath, {
+        withFileTypes: true,
+      })) {
         if (!ent.isDirectory()) continue;
         const nested = path.join(folder.uri.fsPath, ent.name, "project.pros");
         if (fs.existsSync(nested)) {

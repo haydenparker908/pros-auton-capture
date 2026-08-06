@@ -1,6 +1,5 @@
 .vscode/**
-.vscode-test/**
 .gitignore
-**/*.map
-**/*.ts
-!extension.js
+**/*.vsix
+node_modules/**
+package-lock.json
