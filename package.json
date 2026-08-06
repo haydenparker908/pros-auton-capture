@@ -2,7 +2,7 @@
   "name": "pros-auton-capture",
   "displayName": "Hayden Robotics PROS Helper",
   "description": "Pinned Quick Actions to build/upload and capture PROS match or skills auton logs into brain-logs/latest.txt.",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "publisher": "HaydenRobotics",
   "license": "MIT",
   "icon": "icon.png",
