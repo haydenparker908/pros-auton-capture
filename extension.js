@@ -140,6 +140,14 @@ async function runCapture(context, mode) {
     return;
   }
 
+  const saved = await vscode.workspace.saveAll(false);
+  if (!saved) {
+    vscode.window.showWarningMessage(
+      "Capture cancelled: save your files, then try again."
+    );
+    return;
+  }
+
   const config = vscode.workspace.getConfiguration("prosAutonCapture");
   const isSkills = mode === "skills";
   const single = config.get("singleSlotMode", false);
