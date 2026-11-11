@@ -9,8 +9,10 @@ const { execFile } = require("child_process");
 function activate(context) {
   refreshProsContext();
   const actionsProvider = new ActionsTreeProvider();
+  const linkWatch = startLinkWatch(() => actionsProvider.refresh());
 
   context.subscriptions.push(
+    linkWatch,
     vscode.workspace.onDidChangeWorkspaceFolders(() => refreshProsContext()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("prosAutonCapture")) {
@@ -43,6 +45,120 @@ function activate(context) {
 }
 
 function deactivate() {}
+
+/** @type {{ kind: "checking"|"controller"|"brain"|"none", port: string }} */
+let linkStatus = { kind: "checking", port: "" };
+
+class LinkItem extends vscode.TreeItem {
+  constructor() {
+    const connected = linkStatus.kind === "controller" || linkStatus.kind === "brain";
+    const label =
+      linkStatus.kind === "controller"
+        ? "Controller connected"
+        : linkStatus.kind === "brain"
+          ? "Brain connected"
+          : linkStatus.kind === "checking"
+            ? "Checking USB..."
+            : "Controller not connected";
+    super(label, vscode.TreeItemCollapsibleState.None);
+    this.description = linkStatus.port;
+    this.tooltip = connected
+      ? `${label} on ${linkStatus.port}. Upload can see this USB device.`
+      : "The computer does not see a controller USB device. Reseat the cable until this turns on.";
+    this.iconPath = new vscode.ThemeIcon(
+      linkStatus.kind === "checking" ? "sync" : connected ? "pass-filled" : "error"
+    );
+    this.contextValue = "prosLinkStatus";
+  }
+}
+
+function startLinkWatch(onChange) {
+  const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  item.name = "V5 controller USB";
+  item.show();
+  applyLinkVisual(item);
+
+  let running = false;
+  let timer;
+  const poll = () => {
+    if (running) {
+      return;
+    }
+    running = true;
+    execFile(
+      "powershell",
+      ["-NoProfile", "-Command", linkProbeCommand()],
+      { windowsHide: true, timeout: 20000 },
+      (error, stdout) => {
+        running = false;
+        const next = parseLinkProbe(String(stdout || ""), error);
+        const changed = next.kind !== linkStatus.kind || next.port !== linkStatus.port;
+        linkStatus = next;
+        applyLinkVisual(item);
+        if (changed) {
+          onChange();
+        }
+        timer = setTimeout(poll, 2500);
+      }
+    );
+  };
+  poll();
+
+  return new vscode.Disposable(() => {
+    clearTimeout(timer);
+    item.dispose();
+  });
+}
+
+function linkProbeCommand() {
+  // No double quotes: Windows passes those to PowerShell in a way that breaks -Command.
+  return [
+    "$rows = @(Get-PnpDevice -PresentOnly -Class Ports -ErrorAction SilentlyContinue |",
+    "Where-Object { $_.InstanceId -match 'VID_2888&PID_050[13]' } |",
+    "ForEach-Object { $_.InstanceId + ' ' + $_.FriendlyName });",
+    "if ($rows.Count -eq 0) { 'none' } else { $rows }",
+  ].join(" ");
+}
+
+function parseLinkProbe(text, error) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const controller = lines.find((line) => line.includes("PID_0503"));
+  const brain = lines.find((line) => line.includes("PID_0501") && line.includes("MI_00"));
+  const portOf = (line) => {
+    const match = line && line.match(/COM\d+/i);
+    return match ? match[0].toUpperCase() : "";
+  };
+  if (controller) {
+    return { kind: "controller", port: portOf(controller) };
+  }
+  if (brain) {
+    return { kind: "brain", port: portOf(brain) };
+  }
+  if (error && lines.length === 0) {
+    return { kind: "checking", port: "" };
+  }
+  return { kind: "none", port: "" };
+}
+
+function applyLinkVisual(item) {
+  if (linkStatus.kind === "controller") {
+    item.text = `$(pass-filled) Controller ${linkStatus.port}`.trim();
+    item.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
+    item.tooltip = "Controller USB is connected. Uploads can use this.";
+  } else if (linkStatus.kind === "brain") {
+    item.text = `$(pass-filled) Brain ${linkStatus.port}`.trim();
+    item.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
+    item.tooltip = "Brain USB is connected. The controller cable is not the device the computer sees.";
+  } else if (linkStatus.kind === "checking") {
+    item.text = "$(sync) Checking controller";
+    item.backgroundColor = undefined;
+    item.tooltip = "Looking for a V5 controller on USB.";
+  } else {
+    item.text = "$(error) Controller unplugged";
+    item.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
+    item.tooltip = "The computer does not see the controller. Reseat the USB cable until this changes.";
+  }
+}
 
 class ActionItem extends vscode.TreeItem {
   /**
@@ -84,6 +200,7 @@ class ActionsTreeProvider {
     const logDir = config.get("logDir", "brain-logs");
 
     return [
+      new LinkItem(),
       new ActionItem(
         "Capture Match Auton",
         "prosAutonCapture.captureMatch",
